@@ -69,6 +69,22 @@ stripe-cookbook/
 
 Before adapting the handler for live purchases, implement a durable database transaction that validates the server-created order against the Checkout Session, enforces uniqueness for event/session/order fulfillment, and grants the entitlement atomically. Never use the included in-memory store for live entitlements.
 
+## How this cookbook connects to the ZQM Labs stack
+
+Stripe owns **payment-event verification and fulfillment decisions** in the reference architecture. It does not replace player authentication or resource authorization.
+
+| Concern | Related cookbook | Handoff contract |
+|---|---|---|
+| Game client and purchase UX | [Godot Cookbook](https://github.com/ZQM-Labs/godot-cookbook) | The client may initiate checkout and display outcomes, but must not grant paid access based on query parameters or a success-page redirect. |
+| Browser purchase-flow regression tests | [Playwright Cookbook](https://github.com/ZQM-Labs/playwright-cookbook) | Test UI flow separately from webhook and durable-store tests; full integration requires a disposable environment and synthetic orders. |
+| Player identity and protected content | [PocketBase Cookbook](https://github.com/ZQM-Labs/pocketbase-cookbook) | Map verified fulfillment to a server-controlled entitlement associated with a stable internal player identity. Access checks must be enforced server-side. |
+
+### Entitlement handoff requirements
+
+Before connecting this recipe to a game backend, define the canonical order ID, internal player ID, product/entitlement mapping, unique fulfillment constraints, idempotent event handling, refund/revocation policy, and reconciliation path. Keep Stripe secrets and entitlement writes on trusted server infrastructure.
+
+This repository's PostgreSQL adapter and tests are reference material, **not a production-certified bridge to PocketBase**. The cookbooks currently do not share a deployment, database schema, credentials, or integrated end-to-end pipeline. Prove each contract against isolated test services before any live-mode rollout.
+
 ## Contributing
 
 Each recipe should include exact dependency versions, executable tests, an explicit trust boundary, failure/retry behavior, and known limitations. Do not include live API keys, customer data, or production webhook payloads.
