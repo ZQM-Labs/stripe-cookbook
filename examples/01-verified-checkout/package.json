@@ -1,0 +1,16 @@
+{
+  "name": "zqm-stripe-verified-checkout-example",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Signature verification and idempotent fulfillment boundary example",
+  "scripts": {
+    "test": "node --test app.test.js"
+  },
+  "dependencies": {
+    "express": "5.1.0",
+    "stripe": "18.5.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
