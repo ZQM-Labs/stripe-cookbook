@@ -13,6 +13,20 @@ permissions:
 jobs:
   webhook-tests:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: stripe_cookbook_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d stripe_cookbook_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: examples/01-verified-checkout
@@ -23,3 +37,8 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm test
+      - name: Run PostgreSQL integration tests against disposable service
+        env:
+          STRIPE_COOKBOOK_PG_INTEGRATION: "1"
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/stripe_cookbook_test
+        run: npm run test:postgres
