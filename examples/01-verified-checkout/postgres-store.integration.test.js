@@ -101,6 +101,30 @@ test("PostgreSQL fulfillment integration (opt-in, dedicated test database)", {
       assert.equal(entitlement.rowCount, 1);
     });
 
+    await t.test("concurrent retries of the same event create one event record and one entitlement", async () => {
+      const { orderId, session } = await seedOrder();
+      const input = {
+        eventId: eventId(),
+        eventType: "checkout.session.completed",
+        session,
+      };
+      const results = await Promise.all([
+        store.fulfillPaidCheckout(input),
+        store.fulfillPaidCheckout(input),
+      ]);
+      assert.deepEqual(results.map((r) => r.status).sort(), ["already_fulfilled", "fulfilled"].sort());
+      const events = await pool.query(
+        "SELECT count(*)::int AS count FROM cookbook_stripe_events WHERE event_id = $1",
+        [input.eventId],
+      );
+      const entitlements = await pool.query(
+        "SELECT count(*)::int AS count FROM cookbook_entitlements WHERE order_id = $1",
+        [orderId],
+      );
+      assert.equal(events.rows[0].count, 1);
+      assert.equal(entitlements.rows[0].count, 1);
+    });
+
     await t.test("concurrent distinct events for one order grant only one entitlement", async () => {
       const { orderId, session } = await seedOrder();
       const results = await Promise.all([
