@@ -4,11 +4,12 @@
   "version": "1.0.0",
   "description": "Signature verification and idempotent fulfillment boundary example",
   "scripts": {
-    "test": "node --test app.test.js"
+    "test": "node --test app.test.js postgres-store.test.js"
   },
   "dependencies": {
     "express": "5.1.0",
-    "stripe": "18.5.0"
+    "stripe": "18.5.0",
+    "pg": "8.16.3"
   },
   "engines": {
     "node": ">=20"
