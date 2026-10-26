@@ -21,6 +21,10 @@ A **Stripe cookbook** for game commerce: checkout, webhook verification, idempot
 
 **What it contributes:** Part of the ZQM Labs game-development portfolio. It complements the PocketBase Cookbook by documenting payment-provider events and the server-controlled entitlement boundary.
 
+## Cross-service integration
+
+The companion [PocketBase Cookbook](https://github.com/ZQM-Labs/pocketbase-cookbook) covers player identity and access rules. The shared design boundary for paid access is documented in [Entitlement Contract v1](docs/entitlement-contract-v1.md). It specifies identity mapping, idempotent projection, revocation/reconciliation requirements, and the integration tests still needed. This is a design contract, **not** a deployed Stripe-to-PocketBase bridge.
+
 ## Security invariants
 
 - Never accept client-supplied claims that a checkout has been paid.
