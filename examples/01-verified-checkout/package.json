@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "Signature verification and idempotent fulfillment boundary example",
   "scripts": {
-    "test": "node --test app.test.js postgres-store.test.js"
+    "test": "node --test app.test.js postgres-store.test.js postgres-store.integration.test.js",
+    "test:postgres": "STRIPE_COOKBOOK_PG_TEST=1 node --test postgres-store.integration.test.js"
   },
   "dependencies": {
     "express": "5.1.0",
