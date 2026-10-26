@@ -135,6 +135,37 @@ test("transient storage failure returns 500 so Stripe can retry", async () => {
   });
 });
 
+
+test("same webhook event can recover after a transient store failure", async () => {
+  const durable = memoryStore();
+  const attempts = [];
+  let failOnce = true;
+  const store = {
+    async fulfillPaidCheckout(input) {
+      attempts.push({ eventId: input.eventId, sessionId: input.session.id });
+      if (failOnce) {
+        failOnce = false;
+        throw new Error("synthetic one-time storage outage");
+      }
+      return durable.fulfillPaidCheckout(input);
+    },
+  };
+
+  await withServer(store, async (url) => {
+    const event = makeEvent();
+    const first = await send(url, event);
+    assert.equal(first.status, 500);
+    assert.equal((await first.json()).error, "fulfillment_temporarily_unavailable");
+
+    const retry = await send(url, event);
+    assert.equal(retry.status, 200);
+    assert.equal((await retry.json()).fulfillment, "fulfilled");
+    assert.equal(attempts.length, 2);
+    assert.deepEqual(attempts[0], attempts[1]);
+    assert.equal(durable.calls.length, 1);
+  });
+});
+
 test("missing order metadata fails closed", async () => {
   const store = memoryStore();
   const rejected = [];
