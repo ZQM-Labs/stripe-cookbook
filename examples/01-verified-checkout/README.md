@@ -15,6 +15,7 @@ Tests use Stripe SDK-generated test signatures and synthetic event objects. They
 
 ## Handler behavior
 
+- Requires an explicit `expectedLiveMode` setting and rejects signed events whose `livemode` flag does not match it.
 - Verifies the signature against the raw request body before trusting event fields.
 - Returns 400 for missing raw body/signature, invalid signature, or an invalid paid-session shape.
 - Ignores unsupported event types.
@@ -39,7 +40,7 @@ The handler validates signature and basic session shape, but the durable store r
 
 - Mount this route before any `express.json()` middleware so the SDK receives the exact raw body.
 - Set the webhook endpoint secret independently from the Stripe API secret key.
-- Keep live and test mode configuration separate.
+- Set `expectedLiveMode: false` for test mode and `expectedLiveMode: true` for live mode; the handler refuses to start if this boolean is omitted. Keep endpoint secrets and runtime configuration separate for each mode.
 - Configure only the event types the integration needs.
 - Alert on rejected orders and repeated fulfillment failures; do not log secrets or full payment details.
 - A success redirect is not proof of payment. Grant access only from the verified server-side flow.
