@@ -41,6 +41,9 @@ test("PostgreSQL fulfillment integration (opt-in, dedicated test database)", {
   const createdOrderIds = [];
   const createdEventIds = [];
   const createdSessionIds = [];
+  const failureFunction = `cookbook_test_fail_entitlement_${runId}`;
+  const failureTrigger = `cookbook_test_fail_entitlement_trigger_${runId}`;
+  let failureTriggerInstalled = false;
 
   async function seedOrder(overrides = {}) {
     const orderId = `it_order_${runId}_${createdOrderIds.length}`;
@@ -155,7 +158,48 @@ test("PostgreSQL fulfillment integration (opt-in, dedicated test database)", {
         assert.equal(event.rows[0].reason, expectedReason, label);
       }
     });
+
+    await t.test("an entitlement insert failure rolls back event and order mutations", async () => {
+      const { orderId, session } = await seedOrder();
+      const id = eventId();
+
+      await pool.query(`
+        CREATE FUNCTION ${failureFunction}() RETURNS trigger
+        LANGUAGE plpgsql AS $test$
+        BEGIN
+          RAISE EXCEPTION 'synthetic entitlement insert failure';
+        END;
+        $test$
+      `);
+      await pool.query(`
+        CREATE TRIGGER ${failureTrigger}
+        BEFORE INSERT ON cookbook_entitlements
+        FOR EACH ROW EXECUTE FUNCTION ${failureFunction}()
+      `);
+      failureTriggerInstalled = true;
+
+      await assert.rejects(
+        store.fulfillPaidCheckout({
+          eventId: id,
+          eventType: "checkout.session.completed",
+          session,
+        }),
+        /synthetic entitlement insert failure/,
+      );
+
+      const order = await pool.query("SELECT status FROM cookbook_orders WHERE id = $1", [orderId]);
+      const entitlement = await pool.query("SELECT order_id FROM cookbook_entitlements WHERE order_id = $1", [orderId]);
+      const event = await pool.query("SELECT event_id FROM cookbook_stripe_events WHERE event_id = $1", [id]);
+      assert.equal(order.rows[0].status, "pending", "order update must roll back");
+      assert.equal(entitlement.rowCount, 0, "failed entitlement insert must leave no entitlement");
+      assert.equal(event.rowCount, 0, "event claim must roll back with fulfillment");
+    });
+
   } finally {
+    if (failureTriggerInstalled) {
+      await pool.query(`DROP TRIGGER IF EXISTS ${failureTrigger} ON cookbook_entitlements`);
+    }
+    await pool.query(`DROP FUNCTION IF EXISTS ${failureFunction}()`);
     // Delete only rows created by this test run; never truncate shared tables.
     if (createdOrderIds.length) {
       await pool.query("DELETE FROM cookbook_entitlements WHERE order_id = ANY($1::text[])", [createdOrderIds]);

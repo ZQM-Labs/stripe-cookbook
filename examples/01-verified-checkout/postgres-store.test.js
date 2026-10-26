@@ -113,3 +113,35 @@ test("database failures roll back and propagate for webhook retry", async () => 
 test("constructor requires a PostgreSQL pool", () => {
   assert.throws(() => createPostgresFulfillmentStore({}), /connect\(\)/);
 });
+
+
+test("failures during entitlement, order update, event update, and commit all roll back", async () => {
+  const failurePoints = [
+    "INSERT INTO cookbook_entitlements",
+    "UPDATE cookbook_orders SET status = 'fulfilled'",
+    "UPDATE cookbook_stripe_events SET outcome = 'fulfilled'",
+    "COMMIT",
+  ];
+
+  for (const failAt of failurePoints) {
+    const { pool, calls } = fakePool({ failAt });
+    const store = createPostgresFulfillmentStore(pool);
+    await assert.rejects(
+      store.fulfillPaidCheckout({
+        eventId: `evt_failure_${failurePoints.indexOf(failAt)}`,
+        eventType: "checkout.session.completed",
+        session,
+      }),
+      /synthetic database outage/,
+      `failure at ${failAt} must propagate`,
+    );
+
+    const rollbackIndex = calls.findIndex((call) => call.sql === "ROLLBACK");
+    const failureIndex = calls.findIndex((call) => call.sql.startsWith(failAt));
+    assert.notEqual(failureIndex, -1, `expected failure point ${failAt} was reached`);
+    assert.ok(rollbackIndex > failureIndex, `failure at ${failAt} must trigger rollback`);
+    assert.equal(calls.at(-1).sql, "RELEASE", "connection must be released after rollback");
+    // The fake logs the failed SQL attempt too; the invariant is that the store
+    // issues ROLLBACK and propagates the failure instead of returning success.
+  }
+});
