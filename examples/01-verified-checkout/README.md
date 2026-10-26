@@ -76,3 +76,19 @@ The adapter is an educational reference, not a drop-in production system. The in
 ## Limits
 
 The tests prove handler behavior against synthetic events and exercise adapter decisions with a fake PostgreSQL client. They do not validate a real Stripe account, live webhook endpoint, actual PostgreSQL transaction isolation/locking, purchase fulfillment, or production security configuration.
+
+
+### Real PostgreSQL integration tests
+
+The repository includes an opt-in integration suite that runs against a real PostgreSQL instance. CI provisions a disposable PostgreSQL 16 service and runs the suite separately from the fake-client unit tests.
+
+For a local run, create a **disposable database named exactly** `stripe_cookbook_test` on loopback, install the recipe dependencies, and run:
+
+```sh
+DATABASE_URL=postgres://USER:PASSWORD@127.0.0.1:5432/stripe_cookbook_test \
+  STRIPE_COOKBOOK_PG_INTEGRATION=1 npm run test:postgres
+```
+
+The integration test refuses to run unless the opt-in flag is set, the database name is exactly `stripe_cookbook_test`, and the host is loopback. It creates the sample tables if absent and uses uniquely named test rows, which it removes afterward. **Never point this test at production or a database containing real orders.** Use a disposable local database and credentials with only the permissions required for the sample schema.
+
+The suite verifies concurrent deliveries with distinct event IDs, duplicate delivery of the same event ID, exactly-one entitlement behavior, and durable rejection of amount/currency mismatches. It does not replace testing against your deployed PostgreSQL major version, infrastructure, order-creation path, or live webhook configuration.
