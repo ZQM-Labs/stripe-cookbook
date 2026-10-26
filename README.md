@@ -15,7 +15,7 @@ A **Stripe cookbook** for game commerce: checkout, webhook verification, idempot
 
 ## Repository role and status
 
-**Status:** Newly initialized, public — implementation patterns are being added. Do not treat this repository as a production integration until a specific recipe has executable tests against its stated dependencies and storage model.
+**Status:** Initialized with a first executable webhook-handler recipe and synthetic tests. The included storage adapter is test-only; no production payment integration is provided.
 
 **What this repository is:** Security-conscious, testable Stripe integration patterns for game products and digital entitlements.
 
@@ -33,9 +33,38 @@ A **Stripe cookbook** for game commerce: checkout, webhook verification, idempot
 
 ## Patterns
 
-### 01 — Verified Checkout fulfillment (in progress)
+### 01 — Verified Checkout fulfillment (implemented test harness)
 
-A first recipe is being added for signature verification, replay-safe processing, and server-controlled entitlement fulfillment. It will explicitly separate an executable test adapter from the durable storage requirements of production.
+[Open the recipe](examples/01-verified-checkout/). Verifies webhook signatures against the raw request body, handles paid and delayed-payment Checkout Session events, rejects malformed session data, and returns a retryable 500 on transient storage errors. Tests use synthetic signed events and an in-memory idempotency adapter; production requires a durable transactional store.
+
+## Quick start
+
+From the repository root:
+
+```sh
+npm install --prefix examples/01-verified-checkout
+npm test --prefix examples/01-verified-checkout
+```
+
+CI runs these tests on pull requests and pushes to main. The direct dependencies are pinned in the example manifest, but a committed lockfile is still needed to freeze transitive dependency resolution.
+
+## Repository layout
+
+```text
+stripe-cookbook/
+├── .github/workflows/examples.yml
+├── examples/
+│   └── 01-verified-checkout/
+│       ├── app.js
+│       ├── app.test.js
+│       ├── package.json
+│       └── README.md
+└── README.md
+```
+
+## Production store requirements
+
+Before adapting the handler for live purchases, implement a durable database transaction that validates the server-created order against the Checkout Session, enforces uniqueness for event/session/order fulfillment, and grants the entitlement atomically. Never use the included in-memory store for live entitlements.
 
 ## Contributing
 
