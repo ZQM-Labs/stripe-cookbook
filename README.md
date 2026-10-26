@@ -15,7 +15,7 @@ A **Stripe cookbook** for game commerce: checkout, webhook verification, idempot
 
 ## Repository role and status
 
-**Status:** Initialized with a first executable webhook-handler recipe and synthetic tests. The included storage adapter is test-only; no production payment integration is provided.
+**Status:** Includes a verified webhook-handler recipe, synthetic tests, and an educational PostgreSQL fulfillment adapter/schema. No live payment integration is configured; the adapter still requires real PostgreSQL integration and concurrency testing plus application-specific security review.
 
 **What this repository is:** Security-conscious, testable Stripe integration patterns for game products and digital entitlements.
 
@@ -35,7 +35,7 @@ A **Stripe cookbook** for game commerce: checkout, webhook verification, idempot
 
 ### 01 — Verified Checkout fulfillment (implemented test harness)
 
-[Open the recipe](examples/01-verified-checkout/). Requires an explicit test/live mode setting, verifies webhook signatures against the raw request body, handles paid and delayed-payment Checkout Session events, rejects mode mismatches and malformed session data, and returns a retryable 500 on transient storage errors. Tests use synthetic signed events and an in-memory idempotency adapter; production requires a durable transactional store and an explicitly configured live-mode flag.
+[Open the recipe](examples/01-verified-checkout/). Requires an explicit test/live mode setting, verifies webhook signatures against the raw request body, handles paid and delayed-payment Checkout Session events, rejects mode mismatches and malformed session data, and returns a retryable 500 on transient storage errors. Tests use synthetic signed events; adapter unit tests use a fake PostgreSQL client. The PostgreSQL reference adapter is documented separately and is not production-certified.
 
 ## Quick start
 
@@ -57,6 +57,9 @@ stripe-cookbook/
 │   └── 01-verified-checkout/
 │       ├── app.js
 │       ├── app.test.js
+│       ├── postgres-store.js
+│       ├── postgres-store.test.js
+│       ├── schema.postgres.sql
 │       ├── package.json
 │       └── README.md
 └── README.md
