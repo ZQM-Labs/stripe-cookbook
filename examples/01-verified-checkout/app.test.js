@@ -31,7 +31,7 @@ function makeEvent(type = "checkout.session.completed", overrides = {}) {
 }
 
 async function withServer(store, callback, onRejected = () => {}) {
-  const server = createServer(createApp({ stripe, endpointSecret: secret, store, onRejected }));
+  const server = createServer(createApp({ stripe, endpointSecret: secret, expectedLiveMode: false, store, onRejected }));
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   try {
@@ -145,4 +145,24 @@ test("missing order metadata fails closed", async () => {
     assert.equal(rejected.length, 1);
     assert.equal(rejected[0].reason, "invalid_paid_session_shape");
   }, (entry) => rejected.push(entry));
+});
+
+test("live-mode event is rejected by a test-mode endpoint configuration", async () => {
+  const store = memoryStore();
+  await withServer(store, async (url) => {
+    const response = await send(url, { ...makeEvent(), livemode: true });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, "webhook_mode_mismatch");
+    assert.equal(store.calls.length, 0);
+  });
+});
+
+test("unsupported signed events are acknowledged without fulfillment", async () => {
+  const store = memoryStore();
+  await withServer(store, async (url) => {
+    const response = await send(url, makeEvent("customer.updated"));
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).ignored, "unsupported_event");
+    assert.equal(store.calls.length, 0);
+  });
 });

@@ -5,11 +5,14 @@ const FULFILLMENT_EVENTS = new Set([
   "checkout.session.async_payment_succeeded",
 ]);
 
-function createApp({ stripe, endpointSecret, store, onRejected = () => {} }) {
+function createApp({ stripe, endpointSecret, expectedLiveMode, store, onRejected = () => {} }) {
   if (!stripe || typeof stripe.webhooks?.constructEvent !== "function") {
     throw new TypeError("A Stripe SDK client is required.");
   }
   if (!endpointSecret) throw new TypeError("A webhook endpoint secret is required.");
+  if (typeof expectedLiveMode !== "boolean") {
+    throw new TypeError("expectedLiveMode must be explicitly set to true or false.");
+  }
   if (!store || typeof store.fulfillPaidCheckout !== "function") {
     throw new TypeError("A fulfillment store implementing fulfillPaidCheckout is required.");
   }
@@ -28,6 +31,11 @@ function createApp({ stripe, endpointSecret, store, onRejected = () => {} }) {
       event = stripe.webhooks.constructEvent(req.body, signature, endpointSecret);
     } catch {
       return res.status(400).json({ error: "invalid_webhook_signature" });
+    }
+
+    if (event.livemode !== expectedLiveMode) {
+      onRejected({ eventId: event.id, eventType: event.type, reason: "livemode_mismatch" });
+      return res.status(400).json({ error: "webhook_mode_mismatch" });
     }
 
     if (!FULFILLMENT_EVENTS.has(event.type)) {

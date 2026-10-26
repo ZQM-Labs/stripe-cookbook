@@ -35,7 +35,7 @@ A **Stripe cookbook** for game commerce: checkout, webhook verification, idempot
 
 ### 01 — Verified Checkout fulfillment (implemented test harness)
 
-[Open the recipe](examples/01-verified-checkout/). Verifies webhook signatures against the raw request body, handles paid and delayed-payment Checkout Session events, rejects malformed session data, and returns a retryable 500 on transient storage errors. Tests use synthetic signed events and an in-memory idempotency adapter; production requires a durable transactional store.
+[Open the recipe](examples/01-verified-checkout/). Requires an explicit test/live mode setting, verifies webhook signatures against the raw request body, handles paid and delayed-payment Checkout Session events, rejects mode mismatches and malformed session data, and returns a retryable 500 on transient storage errors. Tests use synthetic signed events and an in-memory idempotency adapter; production requires a durable transactional store and an explicitly configured live-mode flag.
 
 ## Quick start
 
