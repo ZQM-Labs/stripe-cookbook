@@ -1,6 +1,6 @@
 "use strict";
 
-const { test } = require("node:test");
+const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -10,7 +10,6 @@ const { createPostgresFulfillmentStore } = require("./postgres-store");
 const enabled = process.env.STRIPE_COOKBOOK_PG_INTEGRATION === "1";
 const connectionString = process.env.DATABASE_URL || "";
 let pool;
-let schemaApplied;
 let sequence = 0;
 
 function assertSafeTarget() {
@@ -35,10 +34,12 @@ async function setup() {
   assertSafeTarget();
   if (!enabled) return;
   pool = new Pool({ connectionString, max: 8, connectionTimeoutMillis: 5000 });
-  schemaApplied = fs.promises.readFile(path.join(__dirname, "schema.postgres.sql"), "utf8")
-    .then((sql) => pool.query(sql));
-  await schemaApplied;
+  const schema = await fs.promises.readFile(path.join(__dirname, "schema.postgres.sql"), "utf8");
+  await pool.query(schema);
 }
+
+before(async () => { await setup(); });
+after(async () => { await pool?.end(); });
 
 function uniqueId(prefix) {
   sequence += 1;
@@ -96,13 +97,9 @@ test("PostgreSQL integration suite is explicitly opt-in", async (t) => {
     t.skip("Set STRIPE_COOKBOOK_PG_INTEGRATION=1 and a local disposable DATABASE_URL to run PostgreSQL integration tests.");
     return;
   }
-  await setup();
-  t.after(async () => { await pool?.end(); });
 });
 
 test("real PostgreSQL persists fulfillment and makes concurrent duplicate events idempotent", { skip: !enabled }, async (t) => {
-  await setup();
-  t.after(async () => { await pool?.end(); });
   const order = await createOrder();
   t.after(() => cleanup(order));
   const store = createPostgresFulfillmentStore(pool);
@@ -124,8 +121,6 @@ test("real PostgreSQL persists fulfillment and makes concurrent duplicate events
 });
 
 test("same Stripe event delivered concurrently creates only one event record and entitlement", { skip: !enabled }, async (t) => {
-  await setup();
-  t.after(async () => { await pool?.end(); });
   const order = await createOrder();
   t.after(() => cleanup(order));
   const store = createPostgresFulfillmentStore(pool);
@@ -148,8 +143,6 @@ test("same Stripe event delivered concurrently creates only one event record and
 });
 
 test("amount and currency mismatches are durably rejected without entitlement", { skip: !enabled }, async (t) => {
-  await setup();
-  t.after(async () => { await pool?.end(); });
   const amountOrder = await createOrder();
   const currencyOrder = await createOrder({ expected_currency: "eur" });
   t.after(async () => { await cleanup(amountOrder); await cleanup(currencyOrder); });
