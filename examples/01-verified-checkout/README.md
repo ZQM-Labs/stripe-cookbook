@@ -40,7 +40,7 @@ The handler validates signature and basic session shape, but the durable store r
 
 Files:
 
-- `schema.postgres.sql` — isolated example tables for pending orders, Stripe event outcomes, and entitlements.
+- `schema.postgres.sql` — isolated example tables for pending orders, Stripe event outcomes, entitlements, and a durable projection outbox.
 - `postgres-store.js` — a PostgreSQL implementation of the fulfillment-store interface.
 - `postgres-store.test.js` — unit tests using a fake pool; these do not connect to PostgreSQL.
 
@@ -60,9 +60,9 @@ const store = createPostgresFulfillmentStore(pool);
 
 Before the webhook can fulfill an order, your checkout-creation path must persist the server-created order and its actual Stripe Checkout Session ID. Adapt the sample schema to your account model and product/price catalog. Do not copy production order data into cookbook tests.
 
-The adapter claims the event ID, locks the order row, compares the expected session ID, amount, currency, optional customer ID, payment status, and Checkout mode, then writes the entitlement and marks the order fulfilled inside one database transaction. Unique constraints prevent more than one entitlement per order. Database errors roll back and propagate so the webhook responds with a retryable 500. Permanent order mismatches are recorded as rejected and never grant access.
+The adapter claims the event ID, locks the order row, compares the expected session ID, amount, currency, optional customer ID, payment status, and Checkout mode, then writes the entitlement, inserts a stable-key outbox record, and marks the order fulfilled inside one database transaction. Unique constraints prevent more than one entitlement per order and one projection per order/source version. Database errors roll back and propagate so the webhook responds with a retryable 500. The outbox record is only a durable delivery request; this cookbook does not yet include a PocketBase delivery worker or prove downstream access. Permanent order mismatches are recorded as rejected and never grant access.
 
-The adapter is an educational reference, not a drop-in production system. The opt-in integration suite runs against a real PostgreSQL instance and covers successful fulfillment, duplicate event replay, concurrent distinct events for one order, and amount/currency/customer mismatches. CI uses a disposable PostgreSQL 16 service; production parity still requires running the suite against the deployment's PostgreSQL major version. Before production, add migration/backup procedures, pool timeouts, least-privilege database roles, monitoring, and a reviewed policy for rejected-event replay. Confirm the schema and business rules with your application. The integration test refuses database names without 'test' or 'cookbook' and refuses non-local hosts unless the explicit remote-test opt-in is set. Never point it at production.
+The adapter is an educational reference, not a drop-in production system. The opt-in integration suite runs against a real PostgreSQL instance and covers successful fulfillment, duplicate event replay, concurrent distinct events for one order, and amount/currency/customer mismatches. CI uses a disposable PostgreSQL 16 service; production parity still requires running the suite against the deployment's PostgreSQL major version. Before production, add migration/backup procedures, pool timeouts, least-privilege database roles, an outbox worker with bounded claims and retry/backoff, PocketBase-side idempotency and authorization, dead-letter alerting, reconciliation, monitoring, and a reviewed policy for rejected-event replay. Confirm the schema and business rules with your application. The integration test refuses database names without 'test' or 'cookbook' and refuses non-local hosts unless the explicit remote-test opt-in is set. Never point it at production.
 
 ## Deployment notes
 
