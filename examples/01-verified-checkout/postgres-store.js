@@ -95,6 +95,15 @@ function createPostgresFulfillmentStore(pool) {
            ON CONFLICT (order_id) DO NOTHING`,
           [order.id, order.app_user_id, order.product_key],
         );
+        // Persist the downstream projection request in this same transaction.
+        // Stable key + (order_id, source_version) uniqueness make retries idempotent.
+        await client.query(
+          `INSERT INTO cookbook_entitlement_outbox
+             (projection_key, order_id, app_user_id, product_key, desired_status, source_version)
+           VALUES ($1, $2, $3, $4, 'active', 1)
+           ON CONFLICT (projection_key) DO NOTHING`,
+          [`order:${order.id}:entitlement:v1`, order.id, order.app_user_id, order.product_key],
+        );
         await client.query(
           "UPDATE cookbook_orders SET status = 'fulfilled', fulfilled_at = now() WHERE id = $1",
           [order.id],

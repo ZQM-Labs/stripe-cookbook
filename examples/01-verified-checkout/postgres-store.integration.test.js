@@ -90,8 +90,21 @@ test("PostgreSQL fulfillment integration (opt-in, dedicated test database)", {
       assert.deepEqual(result, { status: "fulfilled" });
       const order = await pool.query("SELECT status FROM cookbook_orders WHERE id = $1", [orderId]);
       const entitlement = await pool.query("SELECT order_id FROM cookbook_entitlements WHERE order_id = $1", [orderId]);
+      const outbox = await pool.query(
+        "SELECT projection_key, app_user_id, product_key, desired_status, source_version, delivery_status FROM cookbook_entitlement_outbox WHERE order_id = $1",
+        [orderId],
+      );
       assert.equal(order.rows[0].status, "fulfilled");
       assert.equal(entitlement.rowCount, 1);
+      assert.equal(outbox.rowCount, 1);
+      assert.deepEqual(outbox.rows[0], {
+        projection_key: `order:${orderId}:entitlement:v1`,
+        app_user_id: `it_user_${runId}`,
+        product_key: "integration_product",
+        desired_status: "active",
+        source_version: "1",
+        delivery_status: "pending",
+      });
     });
 
     await t.test("repeated delivery of the same event is idempotent", async () => {
@@ -161,8 +174,13 @@ test("PostgreSQL fulfillment integration (opt-in, dedicated test database)", {
         "SELECT count(*)::int AS count FROM cookbook_entitlements WHERE order_id = $1",
         [orderId],
       );
+      const outbox = await pool.query(
+        "SELECT count(*)::int AS count FROM cookbook_entitlement_outbox WHERE order_id = $1",
+        [orderId],
+      );
       assert.equal(events.rows[0].count, 1);
       assert.equal(entitlements.rows[0].count, 1);
+      assert.equal(outbox.rows[0].count, 1);
     });
 
     await t.test("concurrent distinct events for one order grant only one entitlement", async () => {
@@ -239,6 +257,7 @@ test("PostgreSQL fulfillment integration (opt-in, dedicated test database)", {
     await pool.query(`DROP FUNCTION IF EXISTS ${failureFunction}()`);
     // Delete only rows created by this test run; never truncate shared tables.
     if (createdOrderIds.length) {
+      await pool.query("DELETE FROM cookbook_entitlement_outbox WHERE order_id = ANY($1::text[])", [createdOrderIds]);
       await pool.query("DELETE FROM cookbook_entitlements WHERE order_id = ANY($1::text[])", [createdOrderIds]);
       await pool.query("DELETE FROM cookbook_orders WHERE id = ANY($1::text[])", [createdOrderIds]);
     }
