@@ -109,7 +109,7 @@ function createEntitlementOutboxWorker({
       const errorCode = typeof error?.code === "string" && /^[A-Z0-9_-]{1,40}$/i.test(error.code)
         ? error.code
         : (typeof error?.name === "string" && /^[A-Z0-9_-]{1,40}$/i.test(error.name) ? error.name : "ProjectionError");
-      await pool.query(
+      const retryUpdate = await pool.query(
         `UPDATE cookbook_entitlement_outbox
             SET delivery_status = $3,
                 available_at = CASE WHEN $3 = 'pending'
@@ -122,6 +122,9 @@ function createEntitlementOutboxWorker({
             AND lease_token = $2`,
         [row.projection_key, row.lease_token, deadLetter ? "dead_letter" : "pending", delaySeconds, errorCode],
       );
+      if (retryUpdate.rowCount === 0) {
+        return { status: "lease_lost", projectionKey: row.projection_key };
+      }
       return {
         status: deadLetter ? "dead_letter" : "retry_scheduled",
         projectionKey: row.projection_key,
