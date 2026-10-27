@@ -4,7 +4,17 @@
 
 This contract defines the minimum data and trust boundary for applications combining the Stripe Cookbook's verified Checkout flow with PocketBase player identity. The cookbook examples remain independently runnable. An application must implement and test the adapter explicitly.
 
-## Authority and flow
+## Scope boundary: kit delivery is not player entitlement projection
+
+The current ZQM Labs paid-kit flow is an order-to-artifact delivery service: the Stripe fulfillment service verifies the paid Checkout Session, records an idempotent order, emails a private download link, and handles download/refund/dispute controls. See the [fulfillment service contract](https://github.com/ZQM-Computing/zqm-labs/blob/main/fulfillment-service/README.md). That flow does **not** currently require or implement a Stripe-to-PocketBase player-entitlement projection.
+
+The Lantern backend's documented domain model is kit-scoped: `kits`, `access_codes`, `teams`, and `progress`; access codes are credentials for a kit/event, not stable player identities. The schema does not define the `players` collection or trusted `app_user_id` → PocketBase player mapping assumed by the generic player-entitlement design. See the [Lantern schema](https://github.com/ZQM-Computing/zqm-labs/blob/main/lantern-backend/schema.md).
+
+**Implementation rule:** do not build or deploy the player-entitlement adapter as a prerequisite for the existing downloadable-kit sales flow. First obtain an explicit product decision that hosted, per-player paid access is required and define its identity/ownership model. For the current kit product, keep Stripe payment verification and artifact delivery separate from admin-controlled kit creation and access-code provisioning. Do not infer that a successful download order should create a player account, activate a PocketBase kit, or mint an access code without an approved, tested fulfillment contract.
+
+This distinction does not weaken the requirements below if a future product genuinely needs per-player entitlements. In that case, implement the identity mapping, server-only writes, version ordering, revocation, reconciliation, and disposable-service tests before granting access.
+
+## Authority and flow## Authority and flow
 
 1. A trusted server creates an order and binds it to an authenticated internal player, an allowlisted product/entitlement key, expected amount/currency, and the actual Stripe Checkout Session.
 2. Stripe's signed webhook is the payment signal. A success redirect, client request, PocketBase profile field, or client-supplied product key is not proof of payment.
