@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS cookbook_entitlement_outbox (
   attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
   available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   locked_until TIMESTAMPTZ,
+  lease_token TEXT,
   last_error TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   delivered_at TIMESTAMPTZ,
