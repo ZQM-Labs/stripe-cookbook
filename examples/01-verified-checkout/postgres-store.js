@@ -32,13 +32,22 @@ function createPostgresFulfillmentStore(pool) {
 
         if (claim.rowCount === 0) {
           const existing = await client.query(
-            "SELECT outcome, reason FROM cookbook_stripe_events WHERE event_id = $1",
+            "SELECT session_id, event_type, outcome, reason FROM cookbook_stripe_events WHERE event_id = $1",
             [eventId],
           );
           await client.query("COMMIT");
           inTransaction = false;
-          if (existing.rows[0]?.outcome === "rejected") {
-            return REJECTED(existing.rows[0].reason || "previously_rejected");
+          const prior = existing.rows[0];
+          if (!prior) {
+            throw new Error("Duplicate event claim conflicted but the stored event could not be read.");
+          }
+          // An event ID is an idempotency key, not permission to substitute a
+          // different session or event type on a later delivery.
+          if (prior.session_id !== session.id || prior.event_type !== eventType) {
+            return REJECTED("event_id_reuse_mismatch");
+          }
+          if (prior.outcome === "rejected") {
+            return REJECTED(prior.reason || "previously_rejected");
           }
           return { status: "already_fulfilled" };
         }
