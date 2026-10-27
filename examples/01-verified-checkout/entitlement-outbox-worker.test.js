@@ -103,6 +103,24 @@ test("projection failure schedules a bounded retry without storing arbitrary err
   assert.ok(!update.params.includes("token=secret should not be persisted"));
 });
 
+test("reports lease_lost when a failing projector no longer owns the lease", async () => {
+  const fake = fakePool({ updateRowCount: 0 });
+  const worker = createEntitlementOutboxWorker({
+    pool: fake.pool,
+    projectEntitlement: async () => {
+      const error = new Error("projection unavailable");
+      error.code = "ETIMEDOUT";
+      throw error;
+    },
+  });
+  const result = await worker.deliverOne();
+  assert.deepEqual(result, {
+    status: "lease_lost",
+    projectionKey: "order:o1:entitlement:v1",
+  });
+  assert.ok(fake.poolCalls[0].sql.includes("WHERE projection_key = $1"));
+});
+
 test("dead-letters after the configured attempt limit", async () => {
   const fake = fakePool({ row: {
     projection_key: "order:o1:entitlement:v1",
