@@ -104,6 +104,43 @@ test("PostgreSQL fulfillment integration (opt-in, dedicated test database)", {
       assert.equal(entitlement.rowCount, 1);
     });
 
+    await t.test("reusing an event ID with a different session is rejected", async () => {
+      const first = await seedOrder();
+      const second = await seedOrder();
+      const id = eventId();
+      const firstResult = await store.fulfillPaidCheckout({
+        eventId: id, eventType: "checkout.session.completed", session: first.session,
+      });
+      assert.deepEqual(firstResult, { status: "fulfilled" });
+
+      const replay = await store.fulfillPaidCheckout({
+        eventId: id, eventType: "checkout.session.completed", session: second.session,
+      });
+      assert.deepEqual(replay, { status: "rejected", reason: "event_id_reuse_mismatch" });
+
+      const firstEntitlement = await pool.query(
+        "SELECT order_id FROM cookbook_entitlements WHERE order_id = $1", [first.orderId],
+      );
+      const secondEntitlement = await pool.query(
+        "SELECT order_id FROM cookbook_entitlements WHERE order_id = $1", [second.orderId],
+      );
+      assert.equal(firstEntitlement.rowCount, 1, "the original event's entitlement remains intact");
+      assert.equal(secondEntitlement.rowCount, 0, "a replayed event ID must not grant a second order");
+    });
+
+    await t.test("an unpaid session is rejected without granting access", async () => {
+      const { orderId, session } = await seedOrder({ payment_status: "unpaid" });
+      const id = eventId();
+      const result = await store.fulfillPaidCheckout({
+        eventId: id, eventType: "checkout.session.completed", session,
+      });
+      assert.deepEqual(result, { status: "rejected", reason: "session_not_paid" });
+      const entitlement = await pool.query(
+        "SELECT order_id FROM cookbook_entitlements WHERE order_id = $1", [orderId],
+      );
+      assert.equal(entitlement.rowCount, 0);
+    });
+
     await t.test("concurrent retries of the same event create one event record and one entitlement", async () => {
       const { orderId, session } = await seedOrder();
       const input = {
