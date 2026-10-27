@@ -15,7 +15,7 @@ A **Stripe cookbook** for game commerce: checkout, webhook verification, idempot
 
 ## Repository role and status
 
-**Status:** Includes a verified webhook-handler recipe, synthetic tests, and an educational PostgreSQL fulfillment adapter/schema. No live payment integration is configured; the adapter still requires real PostgreSQL integration and concurrency testing plus application-specific security review.
+**Status:** Includes a verified webhook-handler recipe, synthetic tests, a PostgreSQL fulfillment adapter/schema, and an opt-in PostgreSQL 16 integration suite covering duplicate replay, concurrent fulfillment, and order/session/payment mismatches. The reference adapter is educational and is not a live payment integration; application-specific security review, deployment-version parity, operational reconciliation, and end-to-end integration with the consuming backend remain required.
 
 **What this repository is:** Security-conscious, testable Stripe integration patterns for game products and digital entitlements.
 
@@ -57,12 +57,15 @@ CI runs these tests on pull requests and pushes to main. The direct dependencies
 ```text
 stripe-cookbook/
 ├── .github/workflows/examples.yml
+├── docs/
+│   └── entitlement-contract-v1.md
 ├── examples/
 │   └── 01-verified-checkout/
 │       ├── app.js
 │       ├── app.test.js
 │       ├── postgres-store.js
 │       ├── postgres-store.test.js
+│       ├── postgres-store.integration.test.js
 │       ├── schema.postgres.sql
 │       ├── package.json
 │       └── README.md
@@ -71,7 +74,7 @@ stripe-cookbook/
 
 ## Production store requirements
 
-Before adapting the handler for live purchases, implement a durable database transaction that validates the server-created order against the Checkout Session, enforces uniqueness for event/session/order fulfillment, and grants the entitlement atomically. Never use the included in-memory store for live entitlements.
+Before adapting the handler for live purchases, verify that the production database version and schema match the chosen adapter, enforce uniqueness for event/session/order fulfillment, and define retry/reconciliation behavior for downstream entitlement projection. Run the opt-in PostgreSQL integration suite against an isolated disposable database and retain its exact-head CI evidence. The tests do not certify production configuration or a Stripe-to-PocketBase bridge. Never use the included in-memory store for live entitlements.
 
 ## How this cookbook connects to the ZQM Labs stack
 
