@@ -38,6 +38,31 @@ The Stripe PostgreSQL example calls its player identifier `app_user_id`; PocketB
 - Define refund, dispute, cancellation, partial-refund, chargeback, and manual-revocation policy before claiming revocation is automated.
 - Detect both paid orders lacking projected entitlements and projected entitlements whose authoritative source is no longer entitled.
 
+## Durable projection outbox (required integration seam)
+
+The PostgreSQL fulfillment transaction and a PocketBase write cannot commit atomically. The integration should therefore use a transactional outbox rather than attempting an untracked second write after the Stripe webhook has already returned success.
+
+- In the same PostgreSQL transaction that creates the entitlement and marks the order fulfilled, insert an outbox row describing the authoritative entitlement state to project. If the transaction rolls back, the outbox row must roll back too.
+- Give each logical projection a stable unique key, such as `order_id + contract_version` for this one-time-purchase example. Do not use a newly generated key on each retry.
+- Store the stable `order_id`, internal `player_id` mapping reference, `product_key`, desired status, source version or monotonic update sequence, creation time, attempt count, and delivery metadata. Avoid storing secrets or unnecessary payment details in the payload.
+- A worker claims pending rows with a bounded lease/claim timeout, calls a trusted server-side PocketBase adapter, and marks delivery complete only after the adapter confirms the expected state. Expired leases and transient errors must be retryable.
+- The PocketBase projection must be idempotent under the stable external key. A timeout after PocketBase commits but before the worker records success must not create a second entitlement on retry.
+- Apply only authoritative, newer state. A delayed retry must not reactivate an entitlement after a later revocation; compare a source version/sequence or re-read the authoritative PostgreSQL state before applying.
+- Keep the webhook response independent of PocketBase availability once the authoritative PostgreSQL transaction succeeds. Alert on outbox age, repeated failures, and dead-letter/manual-review conditions; document safe replay and reconciliation procedures.
+- Do not treat an outbox row as proof that the player can access content. Access checks must still enforce the server-controlled entitlement state and owner boundary.
+
+The outbox is a recommended integration component, **not currently implemented by either cookbook**. Do not claim end-to-end fulfillment until the worker, PocketBase collection rules, identity mapping, reconciliation, and disposable-service tests exist.
+
+### Outbox acceptance tests
+
+- The entitlement, fulfilled order, event outcome, and outbox row commit together; injected failure leaves none of those partial writes behind.
+- Concurrent duplicate webhook deliveries create one logical entitlement and one logical outbox item.
+- Worker retry after a simulated PocketBase timeout converges to one entitlement.
+- A worker crash after the PocketBase write but before marking delivery complete is safe to retry.
+- Revocation followed by replay of an older pending projection cannot restore access.
+- A missing or ambiguous player identity mapping fails closed and remains visible for operator resolution.
+- Re-running reconciliation is idempotent and reports paid-but-unprojected and projected-but-no-longer-authorized records.
+
 ## PocketBase security boundary
 
 The PocketBase player-auth recipe does not currently define an entitlement collection or a Stripe adapter. If an entitlement collection is added, deny ordinary player clients create/update/delete access; scope reads to the owning player or an authorized server; and keep paid-entitlement truth out of client-editable profile or role fields. Test collection rules on a disposable instance with synthetic Player A and Player B. Static CI cannot prove deployed rules.
