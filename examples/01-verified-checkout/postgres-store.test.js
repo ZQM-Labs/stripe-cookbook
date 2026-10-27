@@ -61,6 +61,7 @@ test("fulfills a matching paid session in one committed transaction", async () =
   assert.ok(calls.some((c) => c.sql === "BEGIN"));
   assert.ok(calls.some((c) => c.sql.includes("FOR UPDATE")));
   assert.ok(calls.some((c) => c.sql.startsWith("INSERT INTO cookbook_entitlements")));
+  assert.ok(calls.some((c) => c.sql.startsWith("INSERT INTO cookbook_entitlement_outbox")));
   assert.ok(calls.some((c) => c.sql.startsWith("UPDATE cookbook_orders SET status = 'fulfilled'")));
   assert.ok(calls.some((c) => c.sql === "COMMIT"));
   assert.ok(!calls.some((c) => c.sql === "ROLLBACK"));
@@ -139,6 +140,7 @@ test("constructor requires a PostgreSQL pool", () => {
 test("failures during entitlement, order update, event update, and commit all roll back", async () => {
   const failurePoints = [
     "INSERT INTO cookbook_entitlements",
+    "INSERT INTO cookbook_entitlement_outbox",
     "UPDATE cookbook_orders SET status = 'fulfilled'",
     "UPDATE cookbook_stripe_events SET outcome = 'fulfilled'",
     "COMMIT",
