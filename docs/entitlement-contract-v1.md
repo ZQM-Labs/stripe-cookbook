@@ -14,7 +14,7 @@ The Lantern backend's documented domain model is kit-scoped: `kits`, `access_cod
 
 This distinction does not weaken the requirements below if a future product genuinely needs per-player entitlements. In that case, implement the identity mapping, server-only writes, version ordering, revocation, reconciliation, and disposable-service tests before granting access.
 
-## Authority and flow## Authority and flow
+## Authority and flow
 
 1. A trusted server creates an order and binds it to an authenticated internal player, an allowlisted product/entitlement key, expected amount/currency, and the actual Stripe Checkout Session.
 2. Stripe's signed webhook is the payment signal. A success redirect, client request, PocketBase profile field, or client-supplied product key is not proof of payment.
