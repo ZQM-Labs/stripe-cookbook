@@ -15,7 +15,7 @@ A **Stripe cookbook** for game commerce: checkout, webhook verification, idempot
 
 ## Repository role and status
 
-**Status:** Includes a verified webhook-handler recipe, synthetic tests, a PostgreSQL fulfillment adapter/schema, and an opt-in PostgreSQL 16 integration suite covering duplicate replay, concurrent fulfillment, and order/session/payment mismatches. The reference adapter is educational and is not a live payment integration; application-specific security review, deployment-version parity, operational reconciliation, and end-to-end integration with the consuming backend remain required.
+**Status:** Includes a verified webhook-handler recipe, synthetic tests, a PostgreSQL fulfillment adapter/schema, and an opt-in PostgreSQL 16 integration suite covering duplicate replay, concurrent fulfillment, event-ID reuse with a mismatched session, unpaid sessions, and order/session/payment mismatches. The reference adapter is educational and is not a live payment integration; application-specific security review, deployment-version parity, operational reconciliation, and end-to-end integration with the consuming backend remain required.
 
 **What this repository is:** Security-conscious, testable Stripe integration patterns for game products and digital entitlements.
 

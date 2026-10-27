@@ -36,7 +36,7 @@ function fakePool({ existingEvent = null, foundOrder = order, failAt = null } = 
           ? { rowCount: 0, rows: [] }
           : { rowCount: 1, rows: [{ event_id: params[0] }] };
       }
-      if (normalized.startsWith("SELECT outcome, reason")) {
+      if (normalized.startsWith("SELECT session_id, event_type, outcome, reason")) {
         return { rowCount: existingEvent ? 1 : 0, rows: existingEvent ? [existingEvent] : [] };
       }
       if (normalized.startsWith("SELECT id, app_user_id")) {
@@ -82,7 +82,9 @@ test("amount mismatch is recorded as rejected without entitlement creation", asy
 });
 
 test("duplicate event returns the previously recorded outcome without granting again", async () => {
-  const { pool, calls } = fakePool({ existingEvent: { outcome: "fulfilled", reason: null } });
+  const { pool, calls } = fakePool({ existingEvent: {
+    session_id: session.id, event_type: "checkout.session.completed", outcome: "fulfilled", reason: null,
+  } });
   const store = createPostgresFulfillmentStore(pool);
   const result = await store.fulfillPaidCheckout({
     eventId: "evt_1",
@@ -90,6 +92,25 @@ test("duplicate event returns the previously recorded outcome without granting a
     session,
   });
   assert.deepEqual(result, { status: "already_fulfilled" });
+  assert.ok(!calls.some((c) => c.sql.startsWith("SELECT id, app_user_id")));
+  assert.ok(!calls.some((c) => c.sql.startsWith("INSERT INTO cookbook_entitlements")));
+  assert.ok(calls.some((c) => c.sql === "COMMIT"));
+});
+
+test("event ID reuse with a different session is rejected", async () => {
+  const { pool, calls } = fakePool({ existingEvent: {
+    session_id: "cs_test_some_other_order",
+    event_type: "checkout.session.completed",
+    outcome: "fulfilled",
+    reason: null,
+  } });
+  const store = createPostgresFulfillmentStore(pool);
+  const result = await store.fulfillPaidCheckout({
+    eventId: "evt_1",
+    eventType: "checkout.session.completed",
+    session,
+  });
+  assert.deepEqual(result, { status: "rejected", reason: "event_id_reuse_mismatch" });
   assert.ok(!calls.some((c) => c.sql.startsWith("SELECT id, app_user_id")));
   assert.ok(!calls.some((c) => c.sql.startsWith("INSERT INTO cookbook_entitlements")));
   assert.ok(calls.some((c) => c.sql === "COMMIT"));
